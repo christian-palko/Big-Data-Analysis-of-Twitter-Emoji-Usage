@@ -16,7 +16,9 @@ import org.apache.spark.sql.functions._
 
 /**
   * Runner program to answer Question One of our project:
-  *   What are the most used emoji currently?
+  *   What are the most used emoji over some period of time?
+  *   Functionally equal to Question One, but run on a different set of data
+  * 
   * Takes from Twitter's sampled stream to retrieve tweets in real time,
   *   and parses them down to just emojis, and gets a count per emoji.
   */
@@ -72,9 +74,8 @@ object Runner {
       .select($"data.text")
       .filter($"text" rlike s"$emoji")
       .select(regexp_replace($"text", s"$notEmoji", "").as("Removed Text"))
-      .select(regexp_replace($"Removed Text", s"$regexSpace", " $1 ").as("Added Emoji Space"))
-      .select(trim($"Added Emoji Space").as("Trimmed"))
-      .select(split($"Trimmed", " ").as("Split"))
+      .select(regexp_replace($"Removed Text", s"$regexSpace", " $1").as("Added Emoji Space"))
+      .select(split($"Added Emoji Space", " ").as("Split"))
       .select(explode($"Split").as("Emoji"))
       .filter($"Emoji" rlike s"$emoji")
       .filter(!$"Emoji".contains("(") && !$"Emoji".contains(")") && !$"Emoji".contains("|"))
