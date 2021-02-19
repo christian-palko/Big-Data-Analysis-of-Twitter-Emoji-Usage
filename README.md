@@ -20,6 +20,7 @@ This purpose of this project is to use Twitter data to analyze the use of emojis
 * SBT
 * VSCode
 * Hydrator - (Takes 'dehydrated' tweet ids from old tweets and uses it to reproduce the original tweet with all its data preserved.)
+Documenting the Now. (2020). Hydrator [Computer Software]. Retrieved from https://github.com/docnow/hydrator
 
 ## Getting Started
 
@@ -38,9 +39,9 @@ then
 
 ## Contributors
 
-> Adam Pesch
-> Christian Palko
-> Conor Sosh
+> Adam Pesch,
+> Christian Palko,
+> Conor Sosh,
 > Eunice Lee
 
 ## License
