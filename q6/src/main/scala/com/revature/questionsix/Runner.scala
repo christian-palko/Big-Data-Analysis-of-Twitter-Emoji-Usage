@@ -1,7 +1,7 @@
 package com.revature.questionsix
 
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.functions
+import org.apache.spark.sql.functions._
 import org.apache.spark.sql.DataFrameReader
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.client.config.RequestConfig
@@ -55,63 +55,29 @@ tweetStreamToDir(bearerToken, queryString = "?tweet.fields=geo&expansions=geo.pl
 
     val streamDf = spark.readStream.schema(staticDf.schema).json("twitterstream")
 
-    //Display location name as tweets occur there
-    val pattern = """.*([^\\u0000-\\uFFFF]).*""".r
-    var countryTweetDF = staticDf
-      .filter(!functions.isnull($"includes.places"))
-      .select(functions.element_at($"includes.places", 1)("country").as("Country"), $"data.text")
-      //.as[String]
-      // .flatMap(text => {
-      //   text match {
-      //     case pattern(emote) => { Some(emote) }
-      //     case notFound        => None
-      //   }
-      // })
-      // .groupBy("value")
-      // .count()
-      // .sort(functions.desc("count"))
-      // .writeStream
-      // .outputMode("append")
-      // .format("console")
-      // .option("truncate", false)
-      // .start()
-      // .awaitTermination()
+    val emoji = "[(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val notEmoji = "[^(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val regexSpace = "(\\B\uD83D.{1})|(\\B\uD83C.{1})|(\\B\uD83E.{1})"
 
-    countryTweetDF.createOrReplaceTempView("countryView")
-
-    val regex = """.*([^\\u0000-\\uFFFF]).*""".r
-    val notRegex = """.*([\\u0000-\\uFFFF]).*""".r
-
-    spark.sql("SELECT Emoji, COUNT(Emoji) " +
-      "FROM (" +
-      "SELECT REGEXP_EXTRACT(text, '.*([^\\u0000-\\uFFFF]).*') AS Emoji " +
-      "FROM countryView " +
-      "WHERE text RLIKE '.*([^\\u0000-\\uFFFF]).*' " +
-      ")" +
-      "GROUP BY Emoji").show()
-
-    spark.sql("SELECT LEN(text) - LEN(REPLACE(text, '${regex}', ''))")
-
-
-    // val pattern = ".*([^\u0000-\uFFFF]).*".r
-    // streamDf
-    //   .select($"data.text")
-    //   .as[String]
-    //   .flatMap(text => {
-    //     text match {
-    //       case pattern(emote) => { Some(emote) }
-    //       case notFound        => None
-    //     }
-    //   })
-    //   .groupBy("value")
-    //   .count()
-    //   .sort(functions.desc("count"))
-    //   .writeStream
-    //   .outputMode("complete")
-    //   .format("console")
-    //   .start()
-    //   .awaitTermination()
-
+    streamDf
+      .select($"data.text", $"includes.places.country")
+      .filter($"includes".isNotNull)
+      .select(regexp_replace($"text", s"${notEmoji}", "").as("Removed Words"), $"Country")
+      .select(regexp_replace($"Removed Words", s"${regexSpace}", " $1").as("Added Spaces"), $"Country")
+      .select(split($"Added Spaces", " ").as("Split"), $"Country")
+      .select(explode($"Split").as("Emoji"), $"Country")
+      .filter($"Emoji" rlike s"${emoji}")
+      .filter(!$"Emoji".contains("(") && !$"Emoji".contains(")") && !$"Emoji".contains("|"))
+      .groupBy($"Country", $"Emoji")
+      .agg(count("Emoji").as("Count"))
+      .sort($"Country", $"Count")
+      .orderBy(desc("Count"), $"Country")
+      .writeStream
+      .outputMode("complete")
+      .format("console")
+      .option("truncate", false)
+      .start()
+      .awaitTermination()
   }
 
   def tweetStreamToDir(
