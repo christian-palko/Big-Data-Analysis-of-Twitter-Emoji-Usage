@@ -18,6 +18,12 @@ import scala.concurrent.Future
 import scala.util.matching.Regex
 import scala.io.StdIn
 
+/**
+  * Runner program to answer Question Three of our project:
+  *   What is the proportion of emojis used per word?
+  * Takes from Twitter's sampled stream to retrieve tweets in real time,
+  *   and parses either words or emoji depending on user input.
+  */
 object Runner {
   def main(args: Array[String]): Unit = {
 
@@ -90,20 +96,23 @@ object Runner {
       spark.readStream.schema(staticDf.schema).json("twitterstream")
 
     // Count the number of emojis in the tweets
-    val pattern = ".*([^\u0000-\uFFFF]).*".r
+    val emoji = "[(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val notEmoji = "[^(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val regexSpace = "(\\B\uD83D.{1})|(\\B\uD83C.{1})|(\\B\uD83E.{1})"
+
     streamDf
       .select($"data.text")
-      .as[String]
-      .flatMap(text => {
-        text match {
-          case pattern(emote) => { Some(emote) }
-          case notFound       => None
-        }
-      })
-      .agg(count("value").as("Emoji Count"))
+      .select(regexp_replace($"text", s"${notEmoji}", "").as("text2"))
+      .select(regexp_replace($"text2", s"${regexSpace}", " $1").as("split2"))
+      .select(split($"split2", " ").as("split5"))
+      .select(explode($"split5").as("exploded"))
+      .filter($"exploded" rlike s"${emoji}")
+      .filter(!$"exploded".contains("(") && !$"exploded".contains(")"))
+      .agg(count("exploded").as("Emoji Count"))
       .writeStream
       .outputMode("complete")
       .format("console")
+      .option("truncate", false)
       .start()
       .awaitTermination()
   }
@@ -140,17 +149,23 @@ object Runner {
     val streamDf =
       spark.readStream.schema(staticDf.schema).json("twitterstream")
 
+    // Count the number of words in tweets
+    val randomThings = "[(\\s)(\\p{C})(\\p{Cntrl}&&[^\r\n\t])()]"
+    val notWords = "^[A-Za-z0-9']+$"
+
     streamDf
       .select($"data.text")
-      .as[String]
-      .explode("text", "word")((line: String) => line.split(" "))
-      .agg(count("word").as("Word Count"))
+      .explode("text", "word")((line: String) => line.split(" ")).as("Split")
+      .select(regexp_replace($"word", s"${randomThings}", "").as("Words"))
+      .filter($"Words" rlike s"${notWords}").as("Words")
+      .agg(count("Words").as("Word Count"))
       .writeStream
       .outputMode("complete")
+      .option("numRows", 50)
       .format("console")
+      .option("truncate", false)
       .start()
       .awaitTermination()
-
   }
 
   def tweetStreamToDir(
