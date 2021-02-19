@@ -1,1 +1,11 @@
 target/
+project/.bloop
+project/project/
+project/target/
+project/metals.sbt
+twitterstream/
+.bloop
+.metals
+.vscode
+.scalafmt.conf
+tweetstream.tmp
