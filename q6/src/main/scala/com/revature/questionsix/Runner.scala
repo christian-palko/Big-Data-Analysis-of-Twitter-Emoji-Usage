@@ -42,7 +42,8 @@ object Runner {
         "1 - Get emoji count for all countries\n" +
         "2 - Get emoji count for ONE country\n" +
         "3 - Get emoji count for all countries BUT this one\n" +
-        "4 - Quit\n")
+        "4 - Get emoji count by country for specific emoji\n" +
+        "5 - Quit\n")
       val input = StdIn.readInt()
       input match {
         case (input) if (input == 1) =>{
@@ -59,6 +60,11 @@ object Runner {
           emojiCountNotStream(spark, userCountry)
         }
         case (input) if (input == 4) =>{
+          println("What emoji would you like to search for?")
+          val userEmoji = StdIn.readLine()
+          mostPopularEmojiStream(spark, userEmoji)
+        }
+        case (input) if (input == 5) =>{
           println("Exiting. . .\n")
           System.exit(0)
         }
@@ -219,6 +225,56 @@ tweetStreamToDir(bearerToken, queryString = "?tweet.fields=geo&expansions=geo.pl
       .awaitTermination()
   }
 
+    def mostPopularEmojiStream(spark: SparkSession, userEmoji: String): Unit = {
+    import spark.implicits._
+
+    val bearerToken = System.getenv(("TWITTER_BEARER_TOKEN"))
+
+    import scala.concurrent.ExecutionContext.Implicits.global
+    Future {
+tweetStreamToDir(bearerToken, queryString = "?tweet.fields=geo&expansions=geo.place_id&place.fields=country")    }
+
+    var start = System.currentTimeMillis()
+    var filesFoundInDir = false
+    while(!filesFoundInDir && (System.currentTimeMillis()-start) < 30000){
+      filesFoundInDir = Files.list(Paths.get("twitterstream")).findFirst().isPresent()
+      Thread.sleep(500)
+    }
+    if(!filesFoundInDir){
+      println("Error: Unable to populate tweetstream after 30 seconds. Exiting. . .")
+      System.exit(1)
+    }
+
+    val staticDf = spark.read.json("twitterstream")
+
+    val streamDf = spark.readStream.schema(staticDf.schema).json("twitterstream")
+
+    val emoji = "[(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val notEmoji = "[^(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val regexSpace = "(\\B\uD83D.{1})|(\\B\uD83C.{1})|(\\B\uD83E.{1})"
+
+    streamDf
+      .select($"data.text", $"includes.places.country")
+      .filter($"includes".isNotNull)
+      .filter($"text" rlike s"${emoji}")
+      .select(regexp_replace($"text", s"${notEmoji}", "").as("Removed Words"), $"Country")
+      .select(regexp_replace($"Removed Words", s"${regexSpace}", " $1").as("Added Space"), $"Country")
+      .select(split($"Added Space", " ").as("Split"), $"Country")
+      .select($"Split", explode($"Country").as("Country"))
+      .select(explode($"Split").as("Emoji"), $"Country")
+      .filter($"Emoji" rlike s"${userEmoji}")
+      .filter(!$"Emoji".contains("(") && !$"Emoji".contains(")") && !$"Emoji".contains("|"))
+      .groupBy($"Country", $"Emoji")
+      .count()
+      .sort($"Emoji", $"Country")
+      .orderBy(desc("count"), $"Country")
+      .writeStream
+      .outputMode("complete")
+      .format("console")
+      .option("truncate", false)
+      .start()
+      .awaitTermination()
+  }
   def tweetStreamToDir(
       bearerToken: String,
       dirname: String = "twitterstream",
