@@ -39,7 +39,8 @@ object Runner {
       println("Options:\n" +
         "1 - Get emoji count for ALL users\n" +
         "2 - Get emoji count for a specific user\n" +
-        "3 - Quit\n")
+        "3 - Get emoji count by specific emoji\n" +
+        "4 - Quit\n")
       val input = StdIn.readInt()
       input match {
         case (input) if (input == 1) =>{
@@ -51,6 +52,11 @@ object Runner {
           emojiCountOneStream(spark, user)
         }
         case (input) if (input == 3) =>{
+          println("What emoji do you want to serach for?")
+          val userEmoji = StdIn.readLine()
+          mostPopularEmojiStream(spark, userEmoji)
+        }
+        case (input) if (input == 4) =>{
           println("Exiting. . .\n")
           System.exit(0)
         }
@@ -187,6 +193,77 @@ object Runner {
       .awaitTermination()
   }
 
+  /**
+    * Search for the user mentioned most with a particular emoji
+    *
+    * @param spark
+    * @param userEmoji
+    */
+    def mostPopularEmojiStream(spark: SparkSession, userEmoji: String): Unit = {
+    import spark.implicits._
+
+    val bearerToken = System.getenv("TWITTER_BEARER_TOKEN")
+
+    import scala.concurrent.ExecutionContext.Implicits.global
+    Future {
+      downloadTweetStream(bearerToken, queryString = "?tweet.fields=entities&expansions=entities.mentions.username")
+    }
+
+    // Routine to wait for a file to appear in the twitterstream folder.
+    // Note: Ends the program if no file appears after 30 seconds.
+    var start = System.currentTimeMillis()
+    var filesFoundInDir = false
+    while (!filesFoundInDir && (System.currentTimeMillis() - start) < 30000) {
+      filesFoundInDir =
+        Files.list(Paths.get("twitterstream")).findFirst().isPresent()
+        Thread.sleep(500)
+    }
+    if (!filesFoundInDir) {
+      println(
+        "Error: Unable to populate tweetstream after 30 seconds. Exiting. . ."
+      )
+      System.exit(1)
+    }
+
+    val staticDf = spark.read.json("twitterstream")
+    val streamDf =
+      spark.readStream.schema(staticDf.schema).json("twitterstream")
+
+    val emoji = "[(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val notEmoji = "[^(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
+    val regexSpace = "(\\B\uD83D.{1})|(\\B\uD83C.{1})|(\\B\uD83E.{1})"
+
+    streamDf
+      .select($"data.text", $"data.entities.mentions.username")
+      .filter($"includes".isNotNull)
+      .filter($"text" rlike s"${emoji}")
+      .select(regexp_replace($"text", s"${notEmoji}", "").as("Removed Words"), $"username")
+      .select(regexp_replace($"Removed Words", s"${regexSpace}", " $1").as("Added Space"), $"username")
+      .select(split($"Added Space", " ").as("Split"), $"username")
+      .select($"Split", explode($"username").as("Username"))
+      .select(explode($"Split").as("Emoji"), $"Username")
+      .filter($"Emoji" rlike s"${userEmoji}")
+      .filter(!$"Emoji".contains("(") && !$"Emoji".contains(")") && !$"Emoji".contains("|"))
+      .groupBy($"Username", $"Emoji")
+      .count()
+      .sort($"Emoji", $"Username")
+      .orderBy(desc("count"), $"Username")
+      .writeStream
+      .outputMode("complete")
+      .format("console")
+      .option("truncate", false)
+      .start()
+      .awaitTermination()
+  }
+
+  /**
+    * Downloads twitter data to the twitterstream directory
+    *
+    * @param bearerToken
+    * @param dirname
+    * @param linesPerFile
+    * @param queryString
+    */
   def downloadTweetStream(
       bearerToken: String,
       dirname: String = "twitterstream",
