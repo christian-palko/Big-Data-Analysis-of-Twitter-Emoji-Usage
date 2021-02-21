@@ -52,7 +52,7 @@ object Runner {
           emojiCountOneStream(spark, user)
         }
         case (input) if (input == 3) =>{
-          println("What emoji do you want to serach for?")
+          println("What emoji do you want to search for?")
           val userEmoji = StdIn.readLine()
           mostPopularEmojiStream(spark, userEmoji)
         }
