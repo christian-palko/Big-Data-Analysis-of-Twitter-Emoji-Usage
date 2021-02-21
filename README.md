@@ -20,7 +20,6 @@ This purpose of this project is to use Twitter data to analyze the use of emojis
 * SBT
 * VSCode
 * Hydrator - (Takes 'dehydrated' tweet ids from old tweets and uses it to reproduce the original tweet with all its data preserved.)
-Documenting the Now. (2020). Hydrator [Computer Software]. Retrieved from https://github.com/docnow/hydrator
 
 ## Getting Started
 
@@ -31,11 +30,11 @@ To download the repo:
 
 ## Usage
 
-Navigate to the particular question directory you are intersted in,
-Import the build using Scala Metals then run
-```sbt assembly```
-then
-```spark-submit target/scala-2.11/question (and hit tab to complete the command)```
+Navigate to the particular question directory you are intersted in,  
+Import the build using Scala Metals then run  
+```sbt assembly```  
+then  
+```spark-submit target/scala-2.11/question (and hit tab to complete the command)```  
 
 ## Contributors
 
@@ -43,6 +42,16 @@ then
 > Christian Palko,
 > Conor Sosh,
 > Eunice Lee
+
+## Credit
+Credit to Daniel Gayo-Avello for his set of Twitter Data:  
+Gayo-Avello, Daniel. (2016). Twitter historical dataset: March 21, 2006 (first tweet) to July 31, 2009 (3 years, 1.5 billion tweets) [Data set]. Zenodo. http://doi.org/10.5281/zenodo.3833782  
+  
+Credit to Archive.org and the Archive Team for their set of Twitter Data:
+https://archive.org/details/twitterstream?tab=collection
+
+Credit to Hydrator to rehydrate the Tweets from Daniel Gayo-Avello's dataset:
+Documenting the Now. (2020). Hydrator [Computer Software]. Retrieved from https://github.com/docnow/hydrator
 
 ## License
 
