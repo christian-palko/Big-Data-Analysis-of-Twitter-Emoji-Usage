@@ -69,12 +69,13 @@ object Runner {
     val bearerToken = System.getenv(("TWITTER_BEARER_TOKEN"))
 
     import scala.concurrent.ExecutionContext.Implicits.global
-    Future {
-      tweetStreamToDir(
-        bearerToken,
-        queryString = "?tweet.fields=context_annotations"
-      )
-    }
+    // Uncomment this block to recieve/add new data
+    // Future {
+    //   tweetStreamToDir(
+    //     bearerToken,
+    //     queryString = "?tweet.fields=context_annotations"
+    //   )
+    // }
 
     var start = System.currentTimeMillis()
     var filesFoundInDir = false
@@ -100,7 +101,7 @@ object Runner {
     val notEmoji = "[^(\uD83D\uDE00-\uD83D\uDE4F)|(\uD83C\uDF00-\uD83D\uDDFF)|(\uD83E\uDD00-\uD83E\uDDFF)]"
     val regexSpace = "(\\B\uD83D.{1})|(\\B\uD83C.{1})|(\\B\uD83E.{1})"
 
-    streamDf
+    staticDf
       .select($"data.text")
       .select(regexp_replace($"text", s"${notEmoji}", "").as("text2"))
       .select(regexp_replace($"text2", s"${regexSpace}", " $1").as("split2"))
@@ -109,12 +110,24 @@ object Runner {
       .filter($"exploded" rlike s"${emoji}")
       .filter(!$"exploded".contains("(") && !$"exploded".contains(")"))
       .agg(count("exploded").as("Emoji Count"))
-      .writeStream
-      .outputMode("complete")
-      .format("console")
-      .option("truncate", false)
-      .start()
-      .awaitTermination()
+      .show()
+
+    // Uncomment this block and to stream live data
+    // streamDf
+    //   .select($"data.text")
+    //   .select(regexp_replace($"text", s"${notEmoji}", "").as("text2"))
+    //   .select(regexp_replace($"text2", s"${regexSpace}", " $1").as("split2"))
+    //   .select(split($"split2", " ").as("split5"))
+    //   .select(explode($"split5").as("exploded"))
+    //   .filter($"exploded" rlike s"${emoji}")
+    //   .filter(!$"exploded".contains("(") && !$"exploded".contains(")"))
+    //   .agg(count("exploded").as("Emoji Count"))
+    //   .writeStream
+    //   .outputMode("complete")
+    //   .format("console")
+    //   .option("truncate", false)
+    //   .start()
+    //   .awaitTermination()
   }
 
   def textTweetStream(spark: SparkSession): Unit = {
@@ -123,12 +136,13 @@ object Runner {
     val bearerToken = System.getenv(("TWITTER_BEARER_TOKEN"))
 
     import scala.concurrent.ExecutionContext.Implicits.global
-    Future {
-      tweetStreamToDir(
-        bearerToken,
-        queryString = "?tweet.fields=context_annotations"
-      )
-    }
+    // Uncomment this block to recieve/add new data
+    // Future {
+    //   tweetStreamToDir(
+    //     bearerToken,
+    //     queryString = "?tweet.fields=context_annotations"
+    //   )
+    // }
 
     var start = System.currentTimeMillis()
     var filesFoundInDir = false
@@ -153,19 +167,27 @@ object Runner {
     val randomThings = "[(\\s)(\\p{C})(\\p{Cntrl}&&[^\r\n\t])()]"
     val notWords = "^[A-Za-z0-9']+$"
 
-    streamDf
+    staticDf
       .select($"data.text")
       .explode("text", "word")((line: String) => line.split(" ")).as("Split")
       .select(regexp_replace($"word", s"${randomThings}", "").as("Words"))
       .filter($"Words" rlike s"${notWords}").as("Words")
       .agg(count("Words").as("Word Count"))
-      .writeStream
-      .outputMode("complete")
-      .option("numRows", 50)
-      .format("console")
-      .option("truncate", false)
-      .start()
-      .awaitTermination()
+      .show()
+
+    // Uncomment this block and to stream live data
+    // streamDf
+    //   .select($"data.text")
+    //   .explode("text", "word")((line: String) => line.split(" ")).as("Split")
+    //   .select(regexp_replace($"word", s"${randomThings}", "").as("Words"))
+    //   .filter($"Words" rlike s"${notWords}").as("Words")
+    //   .agg(count("Words").as("Word Count"))
+    //   .writeStream
+    //   .outputMode("complete")
+    //   .format("console")
+    //   .option("truncate", false)
+    //   .start()
+    //   .awaitTermination()
   }
 
   def tweetStreamToDir(

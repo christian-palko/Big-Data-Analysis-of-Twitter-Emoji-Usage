@@ -3,9 +3,9 @@ project/.bloop
 project/project/
 project/target/
 project/metals.sbt
-twitterstream/
+2006-2009/
+2015/
 .bloop
 .metals
 .vscode
 .scalafmt.conf
-tweetstream.tmp
