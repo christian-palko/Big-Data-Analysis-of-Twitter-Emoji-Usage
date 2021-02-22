@@ -1,4 +1,4 @@
-# Rev Project 2 - Emoji Twitter Data - Team ACCE
+# Project 2 - Big Data Analysis of Twitter Emoji-Usage - Team ACCE
 
 ## Project Description
 
